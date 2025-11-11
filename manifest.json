@@ -11,8 +11,8 @@
     {
       "js": ["scripts/content.js"],
       "matches": [
-        "https://www.youtube.com/shorts/*",
-        "https://www.instagram.com/reels/*"
+        "https://developer.chrome.com/docs/extensions/*",
+        "https://developer.chrome.com/docs/webstore/*"
       ]
     }
   ]
