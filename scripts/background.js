@@ -1,6 +1,3 @@
-import EventEmitter from 'events';
-const eventEmitter = new EventEmitter();
-
 var seconds = 0;
 var timerOn = false;
 
@@ -13,8 +10,9 @@ function stopwatch() {
 }
 
 setInterval(stopwatch, 1000);
+const timerButton = document.getElement('timerButton');
+timerButton.addEventListener('click', function(){
 
-eventEmitter.on("timerButtonClicked", function() {
-    timerOn = !timerOn;
-    console.log("emit received");
+    console.log("button clicked!");
+    
 });
