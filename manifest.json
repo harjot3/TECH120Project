@@ -1,23 +1,24 @@
 {
-  "name": "Short-Content Timer",
-  "description": "Timer",
-  "version": "1.0",
   "manifest_version": 3,
-  "action": {
-    "default_popup": "menu.html",
-    "default_icon": "timer.png"
-  },
+  "name": "Short-Form Time Meter & Fun Facts",
+  "version": "1.0",
+  "description": "Shows a time-spent meter and gentle fun-fact popups while you scroll short-form content sites.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "*://www.youtube.com/*",
+    "*://www.tiktok.com/*",
+    "*://www.instagram.com/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["scripts/content.js"],
-      "run_at": "document_start"
+      "matches": [
+        "*://www.youtube.com/*",
+        "*://www.tiktok.com/*",
+        "*://www.instagram.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
     }
-  ],
-  "background": {
-    "service_worker": "scripts/background.js"
-  }
+  ]
 }
-
-
-  
