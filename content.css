@@ -25,7 +25,6 @@
   pointer-events: auto;
 }
 
-/* Top row: label + current setting */
 #sfm-meter-header {
   display: flex;
   justify-content: space-between;
@@ -38,10 +37,33 @@
   font-size: 15px;
 }
 
+#sfm-meter-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 #sfm-meter-setting {
   font-size: 14px;
   opacity: 0.9;
   white-space: nowrap;
+}
+
+/* 3-dot menu button */
+#sfm-meter-menu-button {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+#sfm-meter-menu-button:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* Progress bar */
@@ -58,7 +80,7 @@
 #sfm-meter-fill {
   height: 100%;
   width: 0%;
-  background: #3cd37f; /* will be updated in JS */
+  background: #3cd37f; /* updated in JS */
   border-radius: 999px;
   transition: width 0.25s ease-out, background-color 0.25s ease-out;
 }
@@ -86,40 +108,108 @@
   margin-top: 2px;
 }
 
-/* ==== POP-UP: FUN FACT (top-right, bigger) ==== */
+/* ==== SETTINGS PANEL (daily limit control) ==== */
 
-#sfm-funfact-popup {
+#sfm-meter-menu-panel {
   position: fixed;
-  /* move to top-right instead of above meter */
-  top: 20px;
   right: 22px;
-  bottom: auto;
-
+  bottom: 120px;
   z-index: 2147483647;
-  max-width: 380px;
 
   background: rgba(16, 16, 16, 0.97);
   color: #ffffff;
 
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 15px;
+  font-size: 13px;
 
-  padding: 16px 18px;
-  border-radius: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
 
-  pointer-events: none; /* user can't click it, it just appears and fades */
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#sfm-meter-menu-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+#sfm-meter-menu-input {
+  width: 100%;
+  padding: 6px 8px;
+  margin-top: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 13px;
+  outline: none;
+}
+
+#sfm-meter-menu-input:focus {
+  border-color: #f2b94e;
+}
+
+#sfm-meter-menu-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#sfm-meter-menu-save,
+#sfm-meter-menu-cancel {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+}
+
+#sfm-meter-menu-cancel {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+#sfm-meter-menu-save {
+  background: #f2b94e;
+  color: #161616;
+}
+
+/* ==== POP-UP: FUN FACT (center of screen, bigger) ==== */
+
+#sfm-funfact-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  z-index: 2147483647;
+  max-width: 420px;
+
+  background: rgba(16, 16, 16, 0.98);
+  color: #ffffff;
+
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+
+  padding: 18px 20px;
+  border-radius: 16px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.6);
+
+  pointer-events: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 
   opacity: 1;
   animation: sfm-funfact-fade-in 0.22s ease-out;
 }
 
-/* Fun-fact text */
 #sfm-funfact-text {
-  line-height: 1.5;
+  line-height: 1.6;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -152,14 +242,14 @@
   }
 }
 
-/* Small fade-in animation for popup */
+/* Fade-in animation for popup */
 @keyframes sfm-funfact-fade-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translate(-50%, calc(-50% + 8px));
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, -50%);
   }
 }
