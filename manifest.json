@@ -1,20 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Short-Form Time Meter & Fun Facts",
-  "version": "1.0",
-  "description": "Shows a time-spent meter and gentle fun-fact popups while you scroll short-form content sites.",
+  "version": "2.0",
+  "description": "Tracks total daily time spent on YouTube Shorts, TikTok, and Instagram Reels, shows a meter, and pop-up fun facts to nudge breaks.",
   "permissions": ["storage"],
   "host_permissions": [
-    "*://www.youtube.com/*",
-    "*://www.tiktok.com/*",
-    "*://www.instagram.com/*"
+    "*://*.youtube.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.instagram.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "*://www.youtube.com/*",
-        "*://www.tiktok.com/*",
-        "*://www.instagram.com/*"
+        "*://*.youtube.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.instagram.com/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
@@ -22,3 +22,5 @@
     }
   ]
 }
+
+
