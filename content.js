@@ -3,91 +3,149 @@
   if (window.__sfmInitialized) return;
   window.__sfmInitialized = true;
 
-  // --- CONFIG (PROTOTYPE: fixed daily time limit) ---
+  // --- CONFIG ---
 
-  // Single fixed time limit: 10 minutes (prototype)
-  // For quick testing you can change this to e.g. 60 (60 seconds)
-  const METER_LIMIT_SECONDS = 10 * 60;
+  // Default daily time limit (10 minutes) – user can change via 3-dot menu
+  const DEFAULT_LIMIT_SECONDS = 10 * 60;
 
-  // How long the pop-up stays visible (should match CSS animation time)
+  // Popup duration
   const POPUP_DURATION_MS = 10000;
 
-  // How often we check whether we're on Shorts / Reels / TikTok (ms)
+  // How often we check if we're on Shorts / Reels / TikTok
   const SHORTFORM_CHECK_INTERVAL_MS = 500;
 
-  // Storage keys for global daily timer
-  const STORAGE_TIME_KEY = "sfm_global_time_seconds";
-  const STORAGE_DATE_KEY = "sfm_global_date";
+  // TikTok-specific popup interval (seconds)
+  const TIKTOK_POPUP_INTERVAL_SECONDS = 2 * 60; // 2 minutes
 
-  // --- STATE ---
+  // Storage keys (ONE global daily timer across all sites)
+  const STORAGE_TIME_KEY = "sfm_time";     // total daily seconds
+  const STORAGE_DATE_KEY = "sfm_date";     // "YYYY-MM-DD"
+  const STORAGE_LIMIT_KEY = "sfm_limit";   // user daily limit in seconds
 
-  let elapsedSeconds = 0;       // global daily time across all sites
-  let scrollCount = 0;          // per "session" in short-form, based on URL changes
+  // --- POP-UP MESSAGES (why you should stop) ---
+
+  const POPUP_MESSAGES = [
+    "The longer you stay on this feed, the harder it becomes to focus on anything else today.",
+    "Each extra short you watch is time taken away from goals that actually matter to you.",
+    "Staying in this loop trains your brain to expect constant stimulation instead of real rest.",
+    "Right now you could choose to pause and give your mind a break instead of one more video.",
+    "Short-form scrolling feels relaxing, but it often leaves you more drained and distracted afterward.",
+    "Every swipe makes it easier to keep going and harder to pull yourself away from the screen.",
+    "If you stopped now, you’d instantly create more time for something meaningful or genuinely relaxing.",
+    "Your attention is valuable—this feed is designed to keep it, not to protect your wellbeing.",
+    "A quick exit now can protect your energy for things that will still matter tomorrow.",
+    "You won’t remember most of these clips, but you will feel the time lost if you keep going."
+  ];
+
+  let popupMessageIndex = 0;
+  function getNextPopupMessage() {
+    const msg = POPUP_MESSAGES[popupMessageIndex];
+    popupMessageIndex = (popupMessageIndex + 1) % POPUP_MESSAGES.length;
+    return msg;
+  }
+
+  // --- STATE (ONE daily total) ---
+
+  let elapsedSeconds = 0;       // global daily time across ALL short-form sites
+  let storedDate = null;        // YYYY-MM-DD stored with that time
+  let userLimitSeconds = DEFAULT_LIMIT_SECONDS;
+
+  let scrollCount = 0;          // per-session scrolls (based on URL changes)
   let timerId = null;
   let isActive = !document.hidden;
-  let shortFormActive = false;  // whether THIS tab is currently in a short-form view
-  let currentDateStr = getTodayDateString();
-  let lastShortFormUrl = null;  // last URL while in short-form, used to detect "scrolls"
+  let shortFormActive = false;
+  let lastShortFormUrl = null;  // used to detect new Shorts/Reels/TikToks
+
+  // TikTok-specific timer for periodic popups
+  let tiktokSecondsSincePopup = 0;
+
+  // Settings panel
+  let menuPanel = null;
+  let menuInput = null;
+  let menuOpen = false;
 
   // --- UTILITIES ---
 
   function getTodayDateString() {
-    // Simple YYYY-MM-DD; uses local time via Date()
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   }
 
-  function loadGlobalTimeAndInit() {
-    if (!chrome || !chrome.storage || !chrome.storage.local) {
-      // Fallback: no storage, just run per-tab
+  function isOnTikTokNow() {
+    const hostname = window.location.hostname || "";
+    return hostname.includes("tiktok.com");
+  }
+
+  // Load state from chrome.storage (ONE global total)
+  function loadGlobalStateAndInit() {
+    try {
+      if (!chrome || !chrome.storage || !chrome.storage.local) {
+        storedDate = getTodayDateString();
+        elapsedSeconds = 0;
+        userLimitSeconds = DEFAULT_LIMIT_SECONDS;
+        initAfterLoad();
+        return;
+      }
+    } catch {
+      storedDate = getTodayDateString();
+      elapsedSeconds = 0;
+      userLimitSeconds = DEFAULT_LIMIT_SECONDS;
       initAfterLoad();
       return;
     }
 
     chrome.storage.local.get(
-      { [STORAGE_TIME_KEY]: 0, [STORAGE_DATE_KEY]: null },
+      {
+        [STORAGE_TIME_KEY]: 0,
+        [STORAGE_DATE_KEY]: null,
+        [STORAGE_LIMIT_KEY]: DEFAULT_LIMIT_SECONDS
+      },
       (data) => {
-        const storedDate = data[STORAGE_DATE_KEY];
-        const storedTime = data[STORAGE_TIME_KEY];
+        const today = getTodayDateString();
 
-        currentDateStr = getTodayDateString();
+        let time = typeof data[STORAGE_TIME_KEY] === "number" ? data[STORAGE_TIME_KEY] : 0;
+        let date = typeof data[STORAGE_DATE_KEY] === "string" ? data[STORAGE_DATE_KEY] : null;
+        let limit = typeof data[STORAGE_LIMIT_KEY] === "number" ? data[STORAGE_LIMIT_KEY] : DEFAULT_LIMIT_SECONDS;
 
-        if (storedDate === currentDateStr && typeof storedTime === "number") {
-          // Same day: continue counting from stored time
-          elapsedSeconds = storedTime;
-        } else {
-          // New day or no data: reset
-          elapsedSeconds = 0;
-          saveGlobalTime(); // write fresh reset
+        if (date !== today) {
+          time = 0;
+          date = today;
         }
 
+        elapsedSeconds = time;
+        storedDate = date;
+        userLimitSeconds = limit > 0 ? limit : DEFAULT_LIMIT_SECONDS;
+
+        saveGlobalState();
         initAfterLoad();
       }
     );
   }
 
-  function saveGlobalTime() {
+  function saveGlobalState() {
     try {
       if (!chrome || !chrome.storage || !chrome.storage.local) return;
       chrome.storage.local.set({
         [STORAGE_TIME_KEY]: elapsedSeconds,
-        [STORAGE_DATE_KEY]: currentDateStr
+        [STORAGE_DATE_KEY]: storedDate,
+        [STORAGE_LIMIT_KEY]: userLimitSeconds
       });
-    } catch (e) {
-      // ignore in prototype
+    } catch {
+      // ignore
     }
   }
 
   function maybeResetForNewDay() {
     const today = getTodayDateString();
-    if (today !== currentDateStr) {
-      currentDateStr = today;
+    if (storedDate !== today) {
+      storedDate = today;
       elapsedSeconds = 0;
       scrollCount = 0;
-      saveGlobalTime();
+      tiktokSecondsSincePopup = 0;
+      saveGlobalState();
       updateMeterUI();
       removeFunFactPopup();
     }
@@ -104,14 +162,11 @@
     const onTikTok = hostname.includes("tiktok.com");
     const onInstagram = hostname.includes("instagram.com");
 
-    // YouTube Shorts: any URL that has /shorts
     const isYouTubeShorts =
       onYouTube && (path.includes("/shorts") || href.includes("/shorts"));
 
-    // TikTok: treat whole site as short-form
-    const isTikTokShortForm = onTikTok;
+    const isTikTokShortForm = onTikTok; // treat all TikTok as short-form
 
-    // Instagram Reels: /reels/ or /reel/ anywhere in path/href
     const isInstagramReels =
       onInstagram &&
       (path.includes("/reels") ||
@@ -122,7 +177,7 @@
     return isYouTubeShorts || isTikTokShortForm || isInstagramReels;
   }
 
-  // --- DOM CREATION ---
+  // --- DOM: Meter + Settings menu ---
 
   function createMeter() {
     if (document.getElementById("sfm-meter-container")) return;
@@ -130,7 +185,7 @@
     const container = document.createElement("div");
     container.id = "sfm-meter-container";
 
-    // Header row
+    // Header
     const header = document.createElement("div");
     header.id = "sfm-meter-header";
 
@@ -138,12 +193,23 @@
     title.id = "sfm-meter-title";
     title.textContent = "Time-Spent Meter";
 
+    const headerRight = document.createElement("div");
+    headerRight.id = "sfm-meter-header-right";
+
     const setting = document.createElement("div");
     setting.id = "sfm-meter-setting";
     setting.textContent = formatMeterSetting();
 
+    const menuButton = document.createElement("button");
+    menuButton.id = "sfm-meter-menu-button";
+    menuButton.type = "button";
+    menuButton.textContent = "⋯";
+
+    headerRight.appendChild(setting);
+    headerRight.appendChild(menuButton);
+
     header.appendChild(title);
-    header.appendChild(setting);
+    header.appendChild(headerRight);
 
     // Progress bar
     const bar = document.createElement("div");
@@ -153,7 +219,7 @@
     fill.id = "sfm-meter-fill";
     bar.appendChild(fill);
 
-    // Stats row
+    // Stats
     const stats = document.createElement("div");
     stats.id = "sfm-meter-stats";
 
@@ -168,11 +234,10 @@
     stats.appendChild(timeLabel);
     stats.appendChild(scrollLabel);
 
-    // Hint row
+    // Hint
     const hint = document.createElement("div");
     hint.id = "sfm-meter-hint";
-    hint.textContent =
-      "Prototype: daily short-form time. POP-UP every 10 Shorts/Reels.";
+    hint.textContent = ""; // will set in updateHintText()
 
     container.appendChild(header);
     container.appendChild(bar);
@@ -180,6 +245,15 @@
     container.appendChild(hint);
 
     document.documentElement.appendChild(container);
+
+    createSettingsPanel();
+
+    menuButton.addEventListener("click", () => {
+      toggleMenuPanel();
+    });
+
+    updateHintText();
+    updateMeterUI();
   }
 
   function destroyMeter() {
@@ -188,18 +262,108 @@
       container.parentNode.removeChild(container);
     }
     removeFunFactPopup();
+    closeMenuPanel();
   }
 
+  function createSettingsPanel() {
+    if (menuPanel) return;
+
+    menuPanel = document.createElement("div");
+    menuPanel.id = "sfm-meter-menu-panel";
+    menuPanel.style.display = "none";
+
+    const label = document.createElement("div");
+    label.id = "sfm-meter-menu-label";
+    label.textContent = "Daily limit (minutes):";
+
+    const input = document.createElement("input");
+    input.id = "sfm-meter-menu-input";
+    input.type = "number";
+    input.min = "1";
+    input.max = "600";
+    input.step = "1";
+    input.value = Math.round(userLimitSeconds / 60);
+
+    const btnRow = document.createElement("div");
+    btnRow.id = "sfm-meter-menu-buttons";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.id = "sfm-meter-menu-cancel";
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "Cancel";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.id = "sfm-meter-menu-save";
+    saveBtn.type = "button";
+    saveBtn.textContent = "Save";
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(saveBtn);
+
+    menuPanel.appendChild(label);
+    menuPanel.appendChild(input);
+    menuPanel.appendChild(btnRow);
+
+    document.documentElement.appendChild(menuPanel);
+
+    menuInput = input;
+
+    cancelBtn.addEventListener("click", () => {
+      closeMenuPanel();
+      if (menuInput) {
+        menuInput.value = Math.round(userLimitSeconds / 60);
+      }
+    });
+
+    saveBtn.addEventListener("click", () => {
+      if (!menuInput) return;
+      const mins = parseInt(menuInput.value, 10);
+      if (!Number.isFinite(mins) || mins <= 0) {
+        menuInput.value = Math.round(userLimitSeconds / 60);
+        closeMenuPanel();
+        return;
+      }
+      userLimitSeconds = mins * 60;
+      saveGlobalState();
+      updateSettingLabel();
+      updateMeterUI();
+      closeMenuPanel();
+    });
+  }
+
+  function openMenuPanel() {
+    if (!menuPanel || !menuInput) return;
+    menuInput.value = Math.round(userLimitSeconds / 60);
+    menuPanel.style.display = "flex";
+    menuOpen = true;
+  }
+
+  function closeMenuPanel() {
+    if (!menuPanel) return;
+    menuPanel.style.display = "none";
+    menuOpen = false;
+  }
+
+  function toggleMenuPanel() {
+    if (!menuPanel) return;
+    if (menuOpen) {
+      closeMenuPanel();
+    } else {
+      openMenuPanel();
+    }
+  }
+
+  // --- POP-UP (center) ---
+
   function createFunFactPopup() {
-    removeFunFactPopup(); // remove existing if any
+    removeFunFactPopup();
 
     const popup = document.createElement("div");
     popup.id = "sfm-funfact-popup";
 
     const text = document.createElement("div");
     text.id = "sfm-funfact-text";
-    // PROTOTYPE TEXT ONLY
-    text.textContent = "POP-UP: FUN FACT";
+    text.textContent = "POP-UP FUN FACTS: " + getNextPopupMessage();
 
     const progress = document.createElement("div");
     progress.id = "sfm-funfact-progress";
@@ -213,7 +377,6 @@
 
     document.documentElement.appendChild(popup);
 
-    // Remove after duration
     setTimeout(removeFunFactPopup, POPUP_DURATION_MS);
   }
 
@@ -234,8 +397,30 @@
   }
 
   function formatMeterSetting() {
-    const mins = Math.round(METER_LIMIT_SECONDS / 60);
-    return `${mins} min limit (fixed, per day)`;
+    const limit = userLimitSeconds > 0 ? userLimitSeconds : DEFAULT_LIMIT_SECONDS;
+    const mins = Math.round(limit / 60);
+    return `${mins} min daily limit`;
+  }
+
+  function updateSettingLabel() {
+    const setting = document.getElementById("sfm-meter-setting");
+    if (setting) {
+      setting.textContent = formatMeterSetting();
+    }
+  }
+
+  // NEW: update hint text depending on TikTok vs Shorts/Reels
+  function updateHintText() {
+    const hint = document.getElementById("sfm-meter-hint");
+    if (!hint) return;
+
+    if (isOnTikTokNow()) {
+      hint.textContent =
+        "Daily short-form time. POP-UP appears every 2 minutes on TikTok.";
+    } else {
+      hint.textContent =
+        "Daily short-form time. POP-UP appears every 10 Shorts/Reels.";
+    }
   }
 
   function updateMeterUI() {
@@ -243,41 +428,54 @@
     const timeLabel = document.getElementById("sfm-meter-time-label");
     const scrollLabel = document.getElementById("sfm-meter-scroll-label");
 
-    if (!fill || !timeLabel || !scrollLabel) return;
+    if (!fill || !timeLabel || !scrollLabel) {
+      updateHintText();
+      return;
+    }
 
-    // Update labels
-    timeLabel.textContent = `Time: ${formatTime(elapsedSeconds)}`;
-    scrollLabel.textContent = `Scrolls: ${scrollCount}`;
+    const limit = userLimitSeconds > 0 ? userLimitSeconds : DEFAULT_LIMIT_SECONDS;
+    const exceeded = elapsedSeconds >= limit;
 
-    // Update bar based on global daily time
-    const ratio = Math.min(elapsedSeconds / METER_LIMIT_SECONDS, 1);
+    const baseTime = `Time: ${formatTime(elapsedSeconds)}`;
+    timeLabel.textContent = exceeded ? `${baseTime} • TIME EXCEEDED` : baseTime;
+
+    // TikTok: hide scrolls label & don't show count
+    if (isOnTikTokNow()) {
+      scrollLabel.style.display = "none";
+    } else {
+      scrollLabel.style.display = "";
+      scrollLabel.textContent = `Scrolls: ${scrollCount}`;
+    }
+
+    const ratio = Math.min(elapsedSeconds / limit, 1);
     fill.style.width = (ratio * 100).toFixed(1) + "%";
 
-    // Color: green -> yellow -> red
     if (ratio < 0.5) {
-      fill.style.backgroundColor = "#3cd37f"; // green
+      fill.style.backgroundColor = "#3cd37f";
     } else if (ratio < 0.85) {
-      fill.style.backgroundColor = "#f2b94e"; // yellow
+      fill.style.backgroundColor = "#f2b94e";
     } else {
-      fill.style.backgroundColor = "#f25f4c"; // red
+      fill.style.backgroundColor = "#f25f4c";
     }
+
+    // keep hint in sync with current site
+    updateHintText();
   }
 
-  // --- SCROLL / "NEXT SHORT" LOGIC (URL-based, POPUP EVERY 10) ---
+  // --- "Scroll" via URL changes (every 10 → popup) ---
 
   function recordScrollLikeAction() {
     if (!shortFormActive) return;
-
     scrollCount += 1;
     updateMeterUI();
 
-    // Every 10 shorts/reels/tiktoks, show the prototype popup
-    if (scrollCount > 0 && scrollCount % 10 === 0) {
+    // For Shorts/Reels (where URL changes), show popup every 10
+    if (!isOnTikTokNow() && scrollCount > 0 && scrollCount % 10 === 0) {
       createFunFactPopup();
     }
   }
 
-  // --- TIMER / DAILY TIME LOGIC ---
+  // --- TIMER / DAILY TIME ---
 
   function tick() {
     if (!isActive || !shortFormActive) return;
@@ -286,7 +484,18 @@
 
     elapsedSeconds += 1;
     updateMeterUI();
-    saveGlobalTime(); // persist shared daily time
+    saveGlobalState();
+
+    // TikTok-specific 2-minute popup
+    if (isOnTikTokNow()) {
+      tiktokSecondsSincePopup += 1;
+      if (tiktokSecondsSincePopup >= TIKTOK_POPUP_INTERVAL_SECONDS) {
+        createFunFactPopup();
+        tiktokSecondsSincePopup = 0;
+      }
+    } else {
+      tiktokSecondsSincePopup = 0;
+    }
   }
 
   function startTimer() {
@@ -301,23 +510,21 @@
     }
   }
 
-  // --- ACTIVITY & VISIBILITY ---
+  // --- VISIBILITY ---
 
   document.addEventListener("visibilitychange", () => {
     isActive = !document.hidden;
   });
 
   // --- SHORT-FORM WATCHER ---
-  // Meter shows IMMEDIATELY when you enter Shorts/Reels/TikTok,
-  // disappears when you leave, keeps a shared daily timer,
-  // and counts "scrolls" as URL changes while in short-form.
 
   function enterShortForm() {
     shortFormActive = true;
-    scrollCount = 0; // reset per entry; you can make this global later if you want
+    scrollCount = 0; // only scrolls reset per session – NOT time
     lastShortFormUrl = window.location.href;
     destroyMeter();
     createMeter();
+    updateSettingLabel();
     updateMeterUI();
     startTimer();
   }
@@ -327,27 +534,28 @@
     stopTimer();
     destroyMeter();
     lastShortFormUrl = null;
+    tiktokSecondsSincePopup = 0;
   }
 
   function startShortFormWatcher() {
     let lastWasShortForm = isOnShortFormNow();
 
     if (lastWasShortForm) {
-      enterShortForm(); // show meter immediately if we loaded directly into Shorts/Reels
+      enterShortForm();
     }
 
     setInterval(() => {
       const nowShortForm = isOnShortFormNow();
       const currentUrl = window.location.href;
 
-      // If we are in short-form, watch for URL changes as "scrolls"
       if (nowShortForm) {
+        // URL-based "scroll" detection for Shorts/Reels only
         if (
+          !isOnTikTokNow() && // don't use URL changes on TikTok
           lastShortFormUrl &&
           currentUrl !== lastShortFormUrl &&
           lastWasShortForm
         ) {
-          // User swiped to a new short / reel / tiktok
           recordScrollLikeAction();
         }
         lastShortFormUrl = currentUrl;
@@ -356,10 +564,8 @@
       }
 
       if (nowShortForm && !lastWasShortForm) {
-        // Just entered Shorts/Reels/TikTok view
         enterShortForm();
       } else if (!nowShortForm && lastWasShortForm) {
-        // Just left Shorts/Reels/TikTok view
         leaveShortForm();
       }
 
@@ -373,5 +579,5 @@
     startShortFormWatcher();
   }
 
-  loadGlobalTimeAndInit();
+  loadGlobalStateAndInit();
 })();
