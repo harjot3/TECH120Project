@@ -2,7 +2,7 @@
 
 <h2>Group 3's Final Project for TECH120 at Purdue University</h2>
 
-<h3>Members: Jenny, Arrow, Luke, and Harjot</h3>
+<h3>Members: Jenny Lee, Arrow Patel, Luke Latino, and Harjot Singh</h3>
 
 <p>
     Our objective is to create a solution for anybody who wishes to balance their consumption of short-form media with studying.
