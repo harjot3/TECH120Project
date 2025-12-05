@@ -5,15 +5,13 @@
 <h3>Members: Jenny Lee, Arrow Patel, Luke Latino, and Harjot Singh</h3>
 
 <p>
-    Our objective is to create a solution for anybody who wishes to balance their consumption of short-form media with studying.
-    How this is achieved is through a display of a clock, where they are allowed n amount of time on selected or default short-form media platforms.
-    <b>This project is specifically for web applications, and not mobile devices.</b>
+Our objective is to create a Chrome extension that helps students balance their use of short-form content with studying. Instead of blocking apps completely, our tool tracks time spent on YouTube Shorts, Instagram Reels, and TikTok on desktop, shows a daily “short-form time” meter, and uses gentle pop-up reminders and fun facts to nudge users to take breaks and return to their work. This project is specifically for web applications, not mobile devices. </b>
 </p>
 
 An example may be as follows:
 <ul>
-    <li> The default constrictions of the timer are that of the Pomodoro Study Technique </li> 
-    <li> The user is allowed 5 minutes (break) on websites such as YouTube Shorts, TikTok, Instagram Reels, etcetera </li>
-    <li> After 5 minutes of having these websites open, they are not allowed for 25 minutes </li>
-    <li> Additionally, a clock will appear when they are scrolling, displaying the total amount of time they've spent scrolling </li>
+    <li> When a user opens YouTube Shorts, Instagram Reels, or TikTok on their computer, the extension starts tracking how long they spend on those short-form feeds. </li> 
+    <li> As the user scrolls through YouTube Shorts and Instagram Reels, the extension counts their scrolls. After a set number of scrolls, a pop-up appears with a fun fact and shows their total short-form time for the day.</li>
+    <li> On TikTok, because the feed is continuous, a pop-up appears every 2 minutes instead of after a specific number of scrolls. </li>
+    <li> The extension keeps a running daily total across all three platforms so users can quickly see how much time they’ve spent scrolling short-form content. </li>
 </ul>
